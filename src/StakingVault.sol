@@ -58,3 +58,46 @@ mapping(address => uint256) public userRewardPerTokenPaid;
 
 // 用户未领取的奖励
 mapping(address => uint256) public rewards;
+
+// 在 Day 4 的状态变量之后添加
+function _updateReward() internal {
+    // 检查是否有质押代币，如果没有，就没有奖励
+    if (totalStaked == 0) {
+        lastUpdateTime = block.timestamp;
+        return;
+    }
+
+    // 1. 计算自上次更新到现在经过的时间 (duration)
+    uint256 timeElapsed = block.timestamp - lastUpdateTime;
+    
+    // 2. 计算这段时间金库总共应发放的奖励 (reward)
+    // 注意：rewardRate, timeElapsed, totalStaked 都是 uint256
+    uint256 reward = timeElapsed * rewardRate; 
+
+    // 3. 计算“每单位 TokenA 应该获得的奖励增量”
+    // 这里涉及到大数除法，Solidity 中没有浮点数，但 totalStaked 是一个大数
+    uint256 rewardPerTokenDelta = (reward * 1e18) / totalStaked; 
+    // *1e18 是为了放大，保证精度，1e18 = 10**18 (类似 Java 的 BigInteger 精度处理)
+
+    // 4. 更新全局累计值
+    rewardPerTokenStored += rewardPerTokenDelta;
+
+    // 5. 更新上次更新时间
+    lastUpdateTime = block.timestamp;
+}
+
+// 在 _updateReward() 之后添加
+function _calculateReward(address account) internal view returns (uint256) {
+    // 1. 获取全局最新的 rewardPerTokenStored（包含本次更新）
+    uint256 rewardPerToken = rewardPerTokenStored; 
+    
+    // 2. 获取用户自己的累计值
+    uint256 userPaid = userRewardPerTokenPaid[account];
+    
+    // 3. 计算用户质押期间的增量奖励值 (Δ)
+    uint256 accumulated = stakedBalance[account] * (rewardPerToken - userPaid);
+    // 这里的 accumulated 依然是放大了 1e18 倍的，需要除以 1e18 还原
+
+    // 4. 返回用户当前未领取的奖励 (已存奖励 + 本次计算新增奖励)
+    return rewards[account] + (accumulated / 1e18); 
+}
