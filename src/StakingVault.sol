@@ -101,3 +101,40 @@ function _calculateReward(address account) internal view returns (uint256) {
     // 4. 返回用户当前未领取的奖励 (已存奖励 + 本次计算新增奖励)
     return rewards[account] + (accumulated / 1e18); 
 }
+
+function claimReward() public {
+    // 1. 更新全局奖励状态，并将用户未领取奖励计入 rewards[msg.sender]
+    _updateReward(); 
+    
+    uint256 reward = rewards[msg.sender];
+    require(reward > 0, "No rewards to claim");
+
+    // 2. 将奖励代币 (Token B) 发送到用户地址
+    // !!!注意：这一步是外部调用，易发生重入攻击（Day 11 解决）
+    rewards[msg.sender] = 0; // 先清零，防止重入攻击（重要）
+    
+    // 3. 将 TokenB 转给用户
+    rewardToken.transfer(msg.sender, reward);
+
+    // 4. 更新用户的奖励累计值
+    userRewardPerTokenPaid[msg.sender] = rewardPerTokenStored;
+}
+
+function withdraw(uint256 amount) public {
+    require(amount > 0, "Amount must be greater than zero");
+    require(stakedBalance[msg.sender] >= amount, "Insufficient staked balance");
+
+    // 1. 领取所有未领取的奖励（确保在取款前计算并清算奖励）
+    claimReward(); 
+
+    // 2. 更新用户状态
+    stakedBalance[msg.sender] -= amount;
+    totalStaked -= amount;
+
+    // 3. 将质押代币 (Token A) 发送到用户地址
+    // !!!注意：这一步是外部调用，易发生重入攻击（Day 11 解决）
+    stakingToken.transfer(msg.sender, amount);
+    
+    // 4. 更新时间戳和奖励累计值
+    _updateReward();
+}
