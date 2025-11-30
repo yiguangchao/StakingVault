@@ -2,8 +2,9 @@
 pragma solidity ^0.8.0;
 
 import "./IERC20.sol"; // 导入定义的接口
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract StakingVault {
+contract StakingVault is Ownable{
     // 质押代币 (TokenA) 和奖励代币 (TokenB) 的地址
     IERC20 public immutable stakingToken; 
     IERC20 public immutable rewardToken; 
@@ -137,4 +138,10 @@ function withdraw(uint256 amount) public {
     
     // 4. 更新时间戳和奖励累计值
     _updateReward();
+}
+
+function setRewardRate(uint256 newRate) public onlyOwner {
+    // 先更新一次，防止管理员设置速率前产生奖励计算错误
+    _updateReward(); 
+    rewardRate = newRate;
 }
